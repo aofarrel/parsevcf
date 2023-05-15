@@ -43,12 +43,12 @@ task make_mask_and_diff {
 	if [[ "~{diffs}" = "true" ]]
 	then
 		echo "Pulling script..."
-		wget https://raw.githubusercontent.com/lilymaryam/parsevcf/1.0.4/vcf_to_diff_script.py
+		wget https://raw.githubusercontent.com/aofarrel/parsevcf/1.1.5/vcf_to_diff_script.py
 		echo "Running script..."
 		python3 vcf_to_diff_script.py -v ~{vcf} \
 		-d . \
 		-tbmf ~{tbmf} \
-		-cf ~{basename_bam}_below_~{min_coverage_per_site}x_coverage.bedgraph \
+		-bam ~{basename_bam}_below_~{min_coverage_per_site}x_coverage.bedgraph \
 		-cd ~{min_coverage_per_site}
 	fi
 	end=$(date +%s)
