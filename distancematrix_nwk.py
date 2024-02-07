@@ -11,6 +11,7 @@ parser.add_argument('-s', '--samples', required=False, type=str,help='comma sepa
 #parser.add_argument('-stdout', action='store_true', help='print matrix to stdout instead of a file')
 parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
+parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -20,6 +21,10 @@ if args.samples:
     samps = args.samples.split(',')
 else:
     samps = sorted([leaf.name for leaf in t])
+if args.out:
+    prefix = args.out
+else:
+    prefix = os.path.basename(tree)
 
 def path_to_root(ete_tree, node):
     # Browse the tree from a specific leaf to the root
@@ -120,14 +125,20 @@ for i in range(len(mat)):
 '''
 
 if not args.nocluster:
-    with open(f"{os.path.basename(tree)}clusters.tsv", "a") as cluster_tsv:
+    with open(f"{prefix}clusters.tsv", "a") as cluster_tsv:
         # generate an auspice-style TSV for annotation of clusters
         cluster_tsv.write('Sample\tCluster\n')
         for i in range(len(clusters)):
             for sample in clusters[i]:
                 cluster_tsv.write(f"{sample}\tcluster{i}\n")
+    
+    # recurse to get distance matrix of each cluster
+    for i in range(len(clusters)):
+        samples = ",".join([sample for sample in clusters[i]])
+        print(samples)
+        os.system(f"python3 distancematrix_nwk.py -s{samples} -nc -o cluster{i} '{tree}'")
 
-with open(f"{os.path.basename(tree)}distance_matrix.tsv", "a") as outfile:
+with open(f"{prefix}distance_matrix.tsv", "a") as outfile:
     outfile.write(f'sample\t'+'\t'.join(samps))
     outfile.write("\n")
     for i in range(len(samps)):
