@@ -12,6 +12,7 @@ parser.add_argument('-s', '--samples', required=False, type=str,help='comma sepa
 parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
+parser.add_argument('-d', '--distance', required=False, type=int, help='max distance between samples to identify as clustered')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -25,6 +26,10 @@ if args.out:
     prefix = args.out
 else:
     prefix = os.path.basename(tree)
+if args.distance:
+    cluster_snp_distance = args.distance
+else:
+    cluster_snp_distance = 50
 
 def path_to_root(ete_tree, node):
     # Browse the tree from a specific leaf to the root
@@ -89,7 +94,7 @@ def dist_matrix(tree, samples):
                     matrix[i][j] = total_distance
                     matrix[j][i] = total_distance
                     if not args.nocluster:
-                        if total_distance <= 50:
+                        if total_distance <= cluster_snp_distance:
                             logging.debug(f"{s} and {os} might be in a cluster ({total_distance})")
                             neighbors.append(tuple((s, os)))
     if not args.nocluster:
