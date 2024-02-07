@@ -81,7 +81,7 @@ def dist_matrix(tree, samples):
                     logging.debug(f"s_path {s_path}, os_path {os_path}")
                     total_distance = int(s_path + os_path)
                     if total_distance <= 50:
-                        logging.info(f"{s} and {os} might be in a cluster ({total_distance})")
+                        logging.debug(f"{s} and {os} might be in a cluster ({total_distance})")
                         neighbors.append(tuple((s, os)))
                         
                     matrix[i][j] = total_distance
