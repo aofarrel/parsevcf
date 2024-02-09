@@ -141,7 +141,7 @@ if not args.nocluster:
     with open(f"{prefix}cluster_groups.tsv", "a") as groupped_clusters:
         groupped_clusters.write('Cluster\tSamples')
         for i in range(len(clusters)):
-            groupped_clusters.write(f"\n{cluster{i}}\t")
+            groupped_clusters.write(f"\ncluster{i}\t")
             for sample in clusters[i]:
                 groupped_clusters.write(f"{sample},") #TODO: this will leave a trailing comma!
     
