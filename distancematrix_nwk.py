@@ -130,12 +130,20 @@ for i in range(len(mat)):
 '''
 
 if not args.nocluster:
+    # generate an auspice-style TSV for annotation of clusters
     with open(f"{prefix}clusters.tsv", "a") as cluster_tsv:
-        # generate an auspice-style TSV for annotation of clusters
         cluster_tsv.write('Sample\tCluster\n')
         for i in range(len(clusters)):
             for sample in clusters[i]:
                 cluster_tsv.write(f"{sample}\tcluster{i}\n")
+    
+    # generate another TSV for subtree annotation
+    with open(f"{prefix}cluster_groups.tsv", "a") as groupped_clusters:
+        groupped_clusters.write('Cluster\tSamples')
+        for i in range(len(clusters)):
+            groupped_clusters.write(f"\n{cluster{i}}\t")
+            for sample in clusters[i]:
+                groupped_clusters.write(f"{sample},") #TODO: this will leave a trailing comma!
     
     # recurse to get distance matrix of each cluster
     for i in range(len(clusters)):
