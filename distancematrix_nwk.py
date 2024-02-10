@@ -142,8 +142,8 @@ if not args.nocluster:
         groupped_clusters.write('Cluster\tSamples')
         for i in range(len(clusters)):
             groupped_clusters.write(f"\ncluster{i}\t")
-            for sample in clusters[i]:
-                groupped_clusters.write(f"{sample},") #TODO: this will leave a trailing comma!
+            samples = ",".join([sample for sample in clusters[i]])
+            groupped_clusters.write(f"{samples}")
     
     # recurse to get distance matrix of each cluster
     for i in range(len(clusters)):
