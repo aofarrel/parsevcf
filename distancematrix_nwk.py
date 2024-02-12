@@ -138,12 +138,13 @@ if not args.nocluster:
                 cluster_tsv.write(f"{sample}\tcluster{i}\n")
     
     # generate another TSV for subtree annotation
-    with open(f"{prefix}cluster_groups.tsv", "a") as groupped_clusters:
-        groupped_clusters.write('Cluster\tSamples')
+    with open(f"{prefix}cluster_groups.tsv", "a") as grouped_clusters:
+        grouped_clusters.write('Cluster\tSamples')
         for i in range(len(clusters)):
-            groupped_clusters.write(f"\ncluster{i}\t")
+            grouped_clusters.write(f"\ncluster{i}\t")
             samples = ",".join([sample for sample in clusters[i]])
-            groupped_clusters.write(f"{samples}")
+            grouped_clusters.write(f"{samples}")
+        grouped_clusters.write("\n") # to avoid skipping last line when read
     
     # recurse to get distance matrix of each cluster
     for i in range(len(clusters)):
