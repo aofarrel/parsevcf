@@ -1,8 +1,8 @@
 import os
 import argparse
+import logging
 import numpy as np
 import ete3
-import logging
 import tqdm as progressbar
 
 parser = argparse.ArgumentParser()
@@ -11,6 +11,8 @@ parser.add_argument('-s', '--samples', required=False, type=str,help='comma sepa
 #parser.add_argument('-stdout', action='store_true', help='print matrix to stdout instead of a file')
 parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
+parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
+parser.add_argument('-d', '--distance', required=False, type=int, help='max distance between samples to identify as clustered')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -20,6 +22,14 @@ if args.samples:
     samps = args.samples.split(',')
 else:
     samps = sorted([leaf.name for leaf in t])
+if args.out:
+    prefix = args.out
+else:
+    prefix = os.path.basename(tree).replace('.nwk', '').replace('_nwk', '')
+if args.distance:
+    cluster_snp_distance = args.distance
+else:
+    cluster_snp_distance = 50
 
 def path_to_root(ete_tree, node):
     # Browse the tree from a specific leaf to the root
@@ -84,7 +94,7 @@ def dist_matrix(tree, samples):
                     matrix[i][j] = total_distance
                     matrix[j][i] = total_distance
                     if not args.nocluster:
-                        if total_distance <= 50:
+                        if total_distance <= cluster_snp_distance:
                             logging.debug(f"{s} and {os} might be in a cluster ({total_distance})")
                             neighbors.append(tuple((s, os)))
     if not args.nocluster:
@@ -119,16 +129,58 @@ for i in range(len(mat)):
             print(i,j)
 '''
 
-if not args.nocluster:
-    with open(f"{os.path.basename(tree)}clusters.tsv", "a") as cluster_tsv:
-        # generate an auspice-style TSV for annotation of clusters
-        cluster_tsv.write('Sample\tCluster\n')
-        for i in range(len(clusters)):
-            for sample in clusters[i]:
-                cluster_tsv.write(f"{sample}\tcluster{i}\n")
+total_samples_processed = len(samps)
 
-with open(f"{os.path.basename(tree)}distance_matrix.tsv", "a") as outfile:
-    outfile.write(f'sample\t'+'\t'.join(samps))
+# this could probably be made more efficient
+if not args.nocluster:
+
+    # per_sample_cluster is the Nextstrain-style TSV used for annotation, eg:
+    # sample12    cluster1
+    # sample13    cluster1
+    # sample14    cluster1
+    per_sample_cluster = ['Sample\tCluster\n']
+
+    # per_cluster_samples is for matutils extract to generate Nextstrain subtrees, eg:
+    # cluster1    sample12,sample13,sample14
+    per_cluster_samples = ['Cluster\tSamples\n']
+
+    # summary information for humans to look at
+    n_clusters = len(clusters) # immutable
+    n_samples_in_clusters = 0  # mutable
+    
+    for i in range(n_clusters):
+        # get basic information
+        samples_in_cluster = list(clusters[i])
+        n_samples_in_clusters += len(samples_in_cluster)
+        samples_in_cluster_str = ",".join(samples_in_cluster)
+
+        # build per_cluster_samples line for this cluster
+        per_cluster_samples.append(f"cluster{i}\t{samples_in_cluster_str}\n")
+
+        # recurse to matrix each cluster
+        os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_cluster{i} '{tree}'")
+        
+        # build per_sample_cluster lines for this cluster
+        for sample in clusters[i]:
+            per_sample_cluster.append(f"{sample}\tcluster{i}\n")
+    
+    per_cluster_samples.append("\n") # to avoid skipping last line when read
+
+    # generate an auspice-style TSV for annotation of clusters
+    with open(f"{prefix}_cluster_annotation.tsv", "a") as samples_for_annotation:
+        samples_for_annotation.writelines(per_sample_cluster)
+    
+    # generate another TSV for subtree annotation
+    with open(f"{prefix}_cluster_extraction.tsv", "a") as clusters_for_subtrees:
+        clusters_for_subtrees.writelines(per_cluster_samples)
+    
+    # generate little summary files for WDL to parse directly
+    with open("n_clusters", "w") as n_cluster: n_cluster.write(str(n_clusters))
+    with open("n_samples_in_clusters", "w") as n_cluded: n_cluded.write(str(n_samples_in_clusters))
+    with open("total_samples_processed", "w") as n_processed: n_processed.write(str(total_samples_processed))
+
+with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
+    outfile.write('sample\t'+'\t'.join(samps))
     outfile.write("\n")
     for i in range(len(samps)):
         #strng = np.array2string(mat[i], separator='\t')[1:-1]
