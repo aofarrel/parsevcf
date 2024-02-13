@@ -175,7 +175,7 @@ if not args.nocluster:
         clusters_for_subtrees.writelines(per_cluster_samples)
     
     # generate little summary files for WDL to parse directly
-    with open("n_clusters", "w") as n_clusters: n_clusters.write(n_clusters)
+    with open("n_clusters", "w") as n_cluster: n_clusters.write(n_clusters)
     with open("n_samples_in_clusters", "w") as n_cluded: n_cluded.write(n_samples_in_clusters)
     with open("total_samples_processed", "w") as n_processed: n_processed.write(total_samples_processed)
 
