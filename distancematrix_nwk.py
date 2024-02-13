@@ -25,7 +25,7 @@ else:
 if args.out:
     prefix = args.out
 else:
-    prefix = os.path.basename(tree)
+    prefix = os.path.basename(tree).replace('.nwk', '').replace('_nwk', '')
 if args.distance:
     cluster_snp_distance = args.distance
 else:
@@ -150,7 +150,7 @@ if not args.nocluster:
     for i in range(len(clusters)):
         samples = ",".join([sample for sample in clusters[i]])
         print(samples)
-        os.system(f"python3 distancematrix_nwk.py -s{samples} -nc -o cluster{i} '{tree}'")
+        os.system(f"python3 distancematrix_nwk.py -s{samples} -nc -o {prefix}_cluster{i} '{tree}'")
 
 with open(f"{prefix}distance_matrix.tsv", "a") as outfile:
     outfile.write(f'sample\t'+'\t'.join(samps))
