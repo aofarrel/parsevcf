@@ -12,7 +12,7 @@ parser.add_argument('-s', '--samples', required=False, type=str,help='comma sepa
 parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
-parser.add_argument('-d', '--distance', required=False, type=int, help='max distance between samples to identify as clustered')
+parser.add_argument('-d', '--distance', default=50, type=int, help='max distance between samples to identify as clustered')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -26,10 +26,6 @@ if args.out:
     prefix = args.out
 else:
     prefix = os.path.basename(tree).replace('.nwk', '').replace('_nwk', '')
-if args.distance:
-    cluster_snp_distance = args.distance
-else:
-    cluster_snp_distance = 50
 
 def path_to_root(ete_tree, node):
     # Browse the tree from a specific leaf to the root
@@ -44,8 +40,9 @@ def path_to_root(ete_tree, node):
 
 def dist_matrix(tree, samples):
     samp_ancs = {}
-    samp_dist = {}
+    #samp_dist = {}
     neighbors = []
+    unclustered = set()
     
     #for each input sample, find path to root and branch lengths
     for s in progressbar.tqdm(samples, desc="Finding roots and branch lengths"):
@@ -57,6 +54,7 @@ def dist_matrix(tree, samples):
 
     for i in progressbar.trange(len(samples), desc="Creating matrix"): # trange is a tqdm optimized version of range
         s = samples[i]
+        in_a_cluster = False
 
         for j in range(len(samples)):
             os = samples[j]
@@ -94,9 +92,14 @@ def dist_matrix(tree, samples):
                     matrix[i][j] = total_distance
                     matrix[j][i] = total_distance
                     if not args.nocluster:
-                        if total_distance <= cluster_snp_distance:
+                        if total_distance <= args.distance:
                             logging.debug(f"{s} and {os} might be in a cluster ({total_distance})")
                             neighbors.append(tuple((s, os)))
+                            in_a_cluster = True
+        # after iterating through all of j, if this sample is not in a cluster, make note of that
+        if not args.nocluster:
+            if not in_a_cluster:
+                unclustered.add(s)
     if not args.nocluster:
         true_clusters = []
         first_iter = True
@@ -118,9 +121,9 @@ def dist_matrix(tree, samples):
     if args.nocluster:
         true_clusters = None
         
-    return samples, matrix, true_clusters
+    return samples, matrix, true_clusters, unclustered
 
-samps, mat, clusters = dist_matrix(t, samps)
+samps, mat, clusters, lonely = dist_matrix(t, samps)
 
 '''
 for i in range(len(mat)):
@@ -160,9 +163,11 @@ if not args.nocluster:
         # recurse to matrix each cluster
         os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_cluster{i} '{tree}'")
         
-        # build per_sample_cluster lines for this cluster
+        # build per_sample_cluster lines for this cluster - this will be used for auspice annotation
         for sample in clusters[i]:
             per_sample_cluster.append(f"{sample}\tcluster{i}\n")
+        for sample in lonely:
+            per_sample_cluster.append(f"{sample}\tlonely\n")
     
     per_cluster_samples.append("\n") # to avoid skipping last line when read
 
