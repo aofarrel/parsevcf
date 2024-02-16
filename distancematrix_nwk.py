@@ -166,9 +166,10 @@ if not args.nocluster:
         # build per_sample_cluster lines for this cluster - this will be used for auspice annotation
         for sample in clusters[i]:
             per_sample_cluster.append(f"{sample}\tcluster{i}\n")
-        for sample in lonely:
-            per_sample_cluster.append(f"{sample}\tlonely\n")
     
+    # add in the unclustered samples (outside for loop to avoid writing multiple times)
+    for sample in lonely:
+            per_sample_cluster.append(f"{sample}\tlonely\n")
     per_cluster_samples.append("\n") # to avoid skipping last line when read
 
     # generate an auspice-style TSV for annotation of clusters
