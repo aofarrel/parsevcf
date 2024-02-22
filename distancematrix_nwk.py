@@ -93,7 +93,7 @@ def dist_matrix(tree, samples):
                     matrix[j][i] = total_distance
                     if not args.nocluster:
                         if total_distance <= args.distance:
-                            logging.debug(f"  {s} and {os} might be in a cluster ({total_distance})")
+                            logging.info(f"  {s} and {os} might be in a cluster ({total_distance})")
                             neighbors.append(tuple((s, os)))
                             definitely_in_a_cluster = True
         # after iterating through all of j, if this sample is not in a cluster, make note of that
@@ -105,7 +105,7 @@ def dist_matrix(tree, samples):
                 if second_smallest_distance <= args.distance:
                     logging.debug(f"  Oops, {s} was already clustered! (closest sample is {second_smallest_distance}) SNPs away")
                 else:
-                    logging.debug(f"  {s} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
+                    logging.info(f"  {s} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
                     unclustered.add(s)
     if not args.nocluster:
         true_clusters = []
@@ -132,6 +132,8 @@ def dist_matrix(tree, samples):
 
 samps, mat, clusters, lonely = dist_matrix(t, samps)
 
+logging.info(f"Processed {len(samps)} samples, specifically: {samps}") # check if alphabetized
+
 '''
 for i in range(len(mat)):
     for j in range(len(mat[i])):
@@ -143,6 +145,8 @@ total_samples_processed = len(samps)
 
 # this could probably be made more efficient
 if not args.nocluster:
+
+    logging.info("Clustering...")
 
     # sample_cluster is the Nextstrain-style TSV used for annotation, eg:
     # sample12    cluster1
@@ -159,8 +163,8 @@ if not args.nocluster:
     n_samples_in_clusters = 0  # mutable
     
     for i in range(n_clusters):
-        # get basic information
-        samples_in_cluster = list(clusters[i])
+        # get basic information -- we can safely sort here as do not use the array directly
+        samples_in_cluster = sorted(list(clusters[i]))
         n_samples_in_clusters += len(samples_in_cluster)
         samples_in_cluster_str = ",".join(samples_in_cluster)
 
@@ -168,13 +172,15 @@ if not args.nocluster:
         cluster_samples.append(f"cluster{i}\t{samples_in_cluster_str}\n")
 
         # recurse to matrix each cluster
+        logging.debug(f"Recursing for cluster {i}...")
         os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_cluster{i} '{tree}'")
         
         # build sample_cluster lines for this cluster - this will be used for auspice annotation
-        for sample in clusters[i]:
+        for sample in samples_in_cluster:
             sample_cluster.append(f"{sample}\tcluster{i}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
+    lonely = sorted(list(lonely))
     for sample in lonely:
         sample_cluster.append(f"{sample}\tlonely\n")
     unclustered_as_str = ','.join(lonely)
@@ -195,6 +201,7 @@ if not args.nocluster:
     with open("n_samples_in_clusters", "w") as n_cluded: n_cluded.write(str(n_samples_in_clusters))
     with open("total_samples_processed", "w") as n_processed: n_processed.write(str(total_samples_processed))
 
+    logging.info("Writing final matrix...") # keep this in the "if not args.nc" because we don't want recursions to print it
 with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
     outfile.write('sample\t'+'\t'.join(samps))
     outfile.write("\n")
@@ -203,3 +210,4 @@ with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
         line = [ str(int(count)) for count in mat[i]]
         outfile.write(f'{samps[i]}\t' + '\t'.join(line) + '\n')
         
+if not args.nocluster: logging.info("Finished!")
