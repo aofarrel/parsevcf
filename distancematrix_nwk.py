@@ -12,7 +12,7 @@ parser.add_argument('-s', '--samples', required=False, type=str,help='comma sepa
 parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
-parser.add_argument('-d', '--distance', default=50, type=int, help='max distance between samples to identify as clustered')
+parser.add_argument('-d', '--distance', default=20, type=int, help='max distance between samples to identify as clustered')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -93,7 +93,7 @@ def dist_matrix(tree, samples):
                     matrix[j][i] = total_distance
                     if not args.nocluster:
                         if total_distance <= args.distance:
-                            logging.info(f"  {s} and {os} might be in a cluster ({total_distance})")
+                            logging.debug(f"  {s} and {os} might be in a cluster ({total_distance})")
                             neighbors.append(tuple((s, os)))
                             definitely_in_a_cluster = True
         # after iterating through all of j, if this sample is not in a cluster, make note of that
@@ -105,7 +105,7 @@ def dist_matrix(tree, samples):
                 if second_smallest_distance <= args.distance:
                     logging.debug(f"  Oops, {s} was already clustered! (closest sample is {second_smallest_distance}) SNPs away")
                 else:
-                    logging.info(f"  {s} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
+                    logging.debug(f"  {s} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
                     unclustered.add(s)
     if not args.nocluster:
         true_clusters = []
