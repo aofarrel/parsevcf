@@ -13,6 +13,7 @@ parser.add_argument('-v', '--verbose', action='store_true', help='enable debug l
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
 parser.add_argument('-d', '--distance', default=20, type=int, help='max distance between samples to identify as clustered')
+parser.add_argument('-nl', '--nolonely', default=True, help='if true, do not make a "cluster" of unclustered samples')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -180,13 +181,14 @@ if not args.nocluster:
             sample_cluster.append(f"{sample}\tcluster{i}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
-    lonely = sorted(list(lonely))
-    for sample in lonely:
-        sample_cluster.append(f"{sample}\tlonely\n")
-    unclustered_as_str = ','.join(lonely)
-    cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
-    cluster_samples.append("\n") # to avoid skipping last line when read
-    os.system(f"python3 distancematrix_nwk.py -s{unclustered_as_str} -nc -o {prefix}_lonely '{tree}'")
+    if not args.nl:
+        lonely = sorted(list(lonely))
+        for sample in lonely:
+            sample_cluster.append(f"{sample}\tlonely\n")
+        unclustered_as_str = ','.join(lonely)
+        cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
+        cluster_samples.append("\n") # to avoid skipping last line when read
+        os.system(f"python3 distancematrix_nwk.py -s{unclustered_as_str} -nc -o {prefix}_lonely '{tree}'")
 
     # generate an auspice-style TSV for annotation of clusters
     with open(f"{prefix}_cluster_annotation.tsv", "a") as samples_for_annotation:
