@@ -137,12 +137,10 @@ samps, mat, clusters, lonely = dist_matrix(t, samps)
 
 logging.info(f"Processed {len(samps)} samples, specifically: {samps}") # check if alphabetized
 
-'''
-for i in range(len(mat)):
-    for j in range(len(mat[i])):
-        if mat[i][j] != mat[j][i]:
-            print(i,j)
-'''
+#for i in range(len(mat)):
+#    for j in range(len(mat[i])):
+#        if mat[i][j] != mat[j][i]:
+#            print(i,j)
 
 total_samples_processed = len(samps)
 
@@ -171,8 +169,8 @@ if not args.nocluster:
         assert len(samples_in_cluster) == len(set(samples_in_cluster))
         n_samples_in_clusters += len(samples_in_cluster) # samples in ANY cluster, not just this one
         samples_in_cluster_str = ",".join(samples_in_cluster)
-        is_cdph = any(samp_name[:2].isdigit() for samp_name in sorted_list)
-        UUID = str(distance).zfill(3) + str(i).zfill(5)
+        is_cdph = any(samp_name[:2].isdigit() for samp_name in samples_in_cluster)
+        UUID = str(args.distance).zfill(3) + str(i).zfill(5)
         if is_cdph:
             cluster_name = f"California-YYYY-{UUID}"
             logging.info(f"{cluster_name}: CDPH, {len(samples_in_cluster)} members")
@@ -213,14 +211,12 @@ if not args.nocluster:
     with open("n_clusters", "w") as n_cluster: n_cluster.write(str(n_clusters))
     with open("n_samples_in_clusters", "w") as n_cluded: n_cluded.write(str(n_samples_in_clusters))
     with open("total_samples_processed", "w") as n_processed: n_processed.write(str(total_samples_processed))
+    logging.info("Writing final matrix...") # keep this in the "if not args.nc" block; we don't want recursions to print it
 
-    logging.info("Writing final matrix...") # keep this in the "if not args.nc" because we don't want recursions to print it
 with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
     outfile.write('sample\t'+'\t'.join(samps))
     outfile.write("\n")
-    for i in range(len(samps)):
+    for i in enumerate(samps):
         #strng = np.array2string(mat[i], separator='\t')[1:-1]
         line = [ str(int(count)) for count in mat[i]]
         outfile.write(f'{samps[i]}\t' + '\t'.join(line) + '\n')
-        
-if not args.nocluster: logging.info("Finished!")
