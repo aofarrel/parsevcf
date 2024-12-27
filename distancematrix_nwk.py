@@ -1,3 +1,5 @@
+print("VERSION 1.4.4")
+
 import os
 import argparse
 import logging
@@ -13,7 +15,7 @@ parser.add_argument('-v', '--verbose', action='store_true', help='enable debug l
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
 parser.add_argument('-d', '--distance', default=20, type=int, help='max distance between samples to identify as clustered')
-parser.add_argument('-nl', '--nolonely', default=True, help='if true, do not make a "cluster" of unclustered samples')
+parser.add_argument('-nl', '--nolonely', action='store_true', help='if true, do not make a "cluster" of unclustered samples')
 
 args = parser.parse_args()
 logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
@@ -166,19 +168,28 @@ if not args.nocluster:
     for i in range(n_clusters):
         # get basic information -- we can safely sort here as do not use the array directly
         samples_in_cluster = sorted(list(clusters[i]))
-        n_samples_in_clusters += len(samples_in_cluster)
+        assert len(samples_in_cluster) == len(set(samples_in_cluster))
+        n_samples_in_clusters += len(samples_in_cluster) # samples in ANY cluster, not just this one
         samples_in_cluster_str = ",".join(samples_in_cluster)
+        is_cdph = any(samp_name[:2].isdigit() for samp_name in sorted_list)
+        UUID = str(distance).zfill(3) + str(i).zfill(5)
+        if is_cdph:
+            cluster_name = f"California-YYYY-{UUID}"
+            logging.info(f"{cluster_name}: CDPH, {len(samples_in_cluster)} members")
+        else:
+            cluster_name = f"ISO-YYYY-{UUID}"
+            logging.info(f"{cluster_name}: open, {len(samples_in_cluster)} members")
 
         # build cluster_samples line for this cluster
-        cluster_samples.append(f"cluster{i}\t{samples_in_cluster_str}\n")
+        cluster_samples.append(f"{cluster_name}\t{samples_in_cluster_str}\n")
 
         # recurse to matrix each cluster
-        logging.debug(f"Recursing for cluster {i}...")
-        os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_cluster{i} '{tree}'")
+        logging.debug(f"Recursing to get matrix for {cluster_name}...")
+        os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_{cluster_name} '{tree}'")
         
         # build sample_cluster lines for this cluster - this will be used for auspice annotation
         for sample in samples_in_cluster:
-            sample_cluster.append(f"{sample}\tcluster{i}\n")
+            sample_cluster.append(f"{sample}\t{cluster_name}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
     if not args.nl:
