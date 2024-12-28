@@ -42,7 +42,7 @@ def path_to_root(ete_tree, node):
     return path
 
 
-def dist_matrix(tree, samples):
+def dist_matrix(tree_to_matrix, samples):
     samp_ancs = {}
     #samp_dist = {}
     neighbors = []
@@ -50,7 +50,7 @@ def dist_matrix(tree, samples):
     
     #for each input sample, find path to root and branch lengths
     for sample in progressbar.tqdm(samples, desc="Finding roots and branch lengths"):
-        s_ancs = path_to_root(tree, sample)
+        s_ancs = path_to_root(tree_to_matrix, sample)
         samp_ancs[sample] = s_ancs
     
     #create matrix for samples
@@ -63,11 +63,11 @@ def dist_matrix(tree, samples):
 
         for j in range(len(samples)):
             that_samp = samples[j]
-            #Future goal: add catch to prevent reiteration of already checked pairs 
+            #Future goal: add catch to prevent reiteration of already checked pairs
             if that_samp == this_samp: # self-to-self
                 matrix[i][j] = '0'
             elif matrix[i][j] == -1: # ie, we haven't calculated this one yet
-                #find lca, add up branch lengths
+                #find lca, add up branch lengths 
                 this_path = 0
                 that_path = 0
                 
@@ -127,7 +127,7 @@ def dist_matrix(tree, samples):
             first_iter = False
     if args.nocluster:
         true_clusters = None
-        
+    logging.debug(matrix)
     return samples, matrix, true_clusters, unclustered
 
 samps, mat, clusters, lonely = dist_matrix(t, samps)
@@ -161,14 +161,14 @@ if not args.nocluster:
     n_clusters = len(clusters) # immutable
     n_samples_in_clusters = 0  # mutable
     
-    for i in range(n_clusters):
+    for n in range(n_clusters):
         # get basic information -- we can safely sort here as do not use the array directly
-        samples_in_cluster = sorted(list(clusters[i]))
+        samples_in_cluster = sorted(list(clusters[n]))
         assert len(samples_in_cluster) == len(set(samples_in_cluster))
         n_samples_in_clusters += len(samples_in_cluster) # samples in ANY cluster, not just this one
         samples_in_cluster_str = ",".join(samples_in_cluster)
         is_cdph = any(samp_name[:2].isdigit() for samp_name in samples_in_cluster)
-        UUID = str(args.distance).zfill(3) + "-" + str(i).zfill(5) + "-" + str(date.today())
+        UUID = str(args.distance).zfill(3) + "-" + str(n).zfill(5) + "-" + str(date.today())
         if is_cdph:
             # TODO: once we have metadata, switch to "California-YYYY"
             cluster_name = f"California-{UUID}"
@@ -186,15 +186,15 @@ if not args.nocluster:
         os.system(f"python3 /scripts/distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_{cluster_name} '{tree}'")
         
         # build sample_cluster lines for this cluster - this will be used for auspice annotation
-        for sample in samples_in_cluster:
-            sample_cluster.append(f"{sample}\t{cluster_name}\n")
-            sample_clusterUUID.append(f"{sample}\t{UUID}\n")
+        for s in samples_in_cluster:
+            sample_cluster.append(f"{s}\t{cluster_name}\n")
+            sample_clusterUUID.append(f"{s}\t{UUID}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
     if not args.nolonely:
         lonely = sorted(list(lonely))
-        for sample in lonely:
-            sample_cluster.append(f"{sample}\tlonely\n") # do NOT add to sample_clusterUUID lest persistent cluster IDs script break
+        for george in lonely: # W0621, https://en.wikipedia.org/wiki/Lonesome_George
+            sample_cluster.append(f"{george}\tlonely\n") # do NOT add to sample_clusterUUID lest persistent cluster IDs script break
         unclustered_as_str = ','.join(lonely)
         cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
         cluster_samples.append("\n") # to avoid skipping last line when read
@@ -221,7 +221,7 @@ if not args.nocluster:
 with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
     outfile.write('sample\t'+'\t'.join(samps))
     outfile.write("\n")
-    for i in enumerate(samps):
+    for ii in enumerate(samps):
         #strng = np.array2string(mat[i], separator='\t')[1:-1]
-        line = [ str(int(count)) for count in mat[i]]
-        outfile.write(f'{samps[i]}\t' + '\t'.join(line) + '\n')
+        line = [ str(int(count)) for count in mat[ii]]
+        outfile.write(f'{samps[ii]}\t' + '\t'.join(line) + '\n')
