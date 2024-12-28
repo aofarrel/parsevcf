@@ -1,4 +1,4 @@
-print("VERSION 1.4.5")
+print("VERSION 1.4.6")
 
 import os
 import argparse
@@ -49,63 +49,64 @@ def dist_matrix(tree, samples):
     unclustered = set()
     
     #for each input sample, find path to root and branch lengths
-    for s in progressbar.tqdm(samples, desc="Finding roots and branch lengths"):
-        s_ancs = path_to_root(tree, s)
-        samp_ancs[s] = s_ancs
+    for sample in progressbar.tqdm(samples, desc="Finding roots and branch lengths"):
+        s_ancs = path_to_root(tree, sample)
+        samp_ancs[sample] = s_ancs
     
     #create matrix for samples
     matrix = np.full((len(samples),len(samples)), -1)
 
     for i in progressbar.trange(len(samples), desc="Creating matrix"): # trange is a tqdm optimized version of range
-        s = samples[i]
+        this_samp = samples[i]
         definitely_in_a_cluster = False
-        logging.debug(f"Checking {s}")
+        logging.debug(f"Checking {this_samp}")
 
         for j in range(len(samples)):
-            os = samples[j]
+            that_samp = samples[j]
             #Future goal: add catch to prevent reiteration of already checked pairs 
-            if os == s:
-                # self-to-self
+            if that_samp == this_samp: # self-to-self
                 matrix[i][j] = '0'
-            else:
-                if matrix[i][j] == -1: # ie, we haven't calculated this one yet
-                    #find lca, add up branch lengths
-                    s_path = 0
-                    os_path = 0
-                    for a in samp_ancs[s]:
-                        s_path += a.dist
-                        if a in samp_ancs[os]:
-                            lca = a
-                            s_path -= a.dist
-                            #logging.debug(f"  found a in samp_ancs[os], setting s_path")
-                            break
-                    
-                    for a in samp_ancs[os]:
-                        os_path += a.dist
-                        if a == lca:
-                            #logging.debug(f'  a == lca, setting os_path')
-                            os_path -= a.dist
-                            break
-                    logging.debug(f"  sample {s} vs other sample {os}: s_path {s_path}, os_path {os_path}")
-                    total_distance = int(s_path + os_path)
-                    matrix[i][j] = total_distance
-                    matrix[j][i] = total_distance
-                    if not args.nocluster:
-                        if total_distance <= args.distance:
-                            logging.debug(f"  {s} and {os} might be in a cluster ({total_distance})")
-                            neighbors.append(tuple((s, os)))
-                            definitely_in_a_cluster = True
+            elif matrix[i][j] == -1: # ie, we haven't calculated this one yet
+                #find lca, add up branch lengths
+                this_path = 0
+                that_path = 0
+                
+                for a in samp_ancs[this_samp]:
+                    this_path += a.dist
+                    if a in samp_ancs[that_samp]:
+                        lca = a
+                        this_path -= a.dist
+                        #logging.debug(f"  found a in samp_ancs[that_samp], setting this_path")
+                        break
+                
+                for a in samp_ancs[that_samp]:
+                    that_path += a.dist
+                    if a == lca:
+                        #logging.debug(f'  a == lca, setting that_path')
+                        that_path -= a.dist
+                        break
+                
+                logging.debug(f"  sample {this_samp} vs other sample {that_samp}: this_path {this_path}, that_path {that_path}")
+                total_distance = int(this_path + that_path)
+                matrix[i][j] = total_distance
+                matrix[j][i] = total_distance
+                if not args.nocluster and total_distance <= args.distance:
+                    logging.debug(f"  {this_samp} and {that_samp} might be in a cluster ({total_distance})")
+                    neighbors.append(tuple((this_samp, that_samp)))
+                    definitely_in_a_cluster = True
+        
         # after iterating through all of j, if this sample is not in a cluster, make note of that
-        if not args.nocluster:
-            if not definitely_in_a_cluster:
-                logging.debug(f"  {s} is either not in a cluster or clustered early")
-                logging.debug(matrix[i])
-                second_smallest_distance = np.partition(matrix[i], 1)[1] # second smallest, because smallest is self-self at 0
-                if second_smallest_distance <= args.distance:
-                    logging.debug(f"  Oops, {s} was already clustered! (closest sample is {second_smallest_distance}) SNPs away")
-                else:
-                    logging.debug(f"  {s} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
-                    unclustered.add(s)
+        if not args.nocluster and not definitely_in_a_cluster:
+            logging.debug(f"  {this_samp} is either not in a cluster or clustered early")
+            logging.debug(matrix[i])
+            second_smallest_distance = np.partition(matrix[i], 1)[1] # second smallest, because smallest is self-self at 0
+            if second_smallest_distance <= args.distance:
+                logging.debug(f"  Oops, {this_samp} was already clustered! (closest sample is {second_smallest_distance}) SNPs away")
+            else:
+                logging.debug(f"  {this_samp} appears to be truly unclustered (closest sample is {second_smallest_distance} SNPs away)")
+                unclustered.add(this_samp)
+    
+    # finished iterating, let's see what our clusters look like
     if not args.nocluster:
         true_clusters = []
         first_iter = True
