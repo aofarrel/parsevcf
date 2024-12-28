@@ -1,4 +1,5 @@
-print("VERSION 1.4.6")
+print("VERSION 1.4.7")
+script_path = '/scripts/distancematrix_nwk.py'
 
 import os
 import argparse
@@ -11,34 +12,35 @@ import tqdm as progressbar
 parser = argparse.ArgumentParser()
 parser.add_argument('tree', type=str, help='path to MAT')
 parser.add_argument('-s', '--samples', required=False, type=str,help='comma separated list of samples')
-#parser.add_argument('-stdout', action='store_true', help='print matrix to stdout instead of a file')
-parser.add_argument('-v', '--verbose', action='store_true', help='enable debug logging')
+parser.add_argument('-v', '--verbose', action='store_true', help='enable info logging')
+parser.add_argument('-vv', '--veryverbose', action='store_true', help='enable debug logging')
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
 parser.add_argument('-d', '--distance', default=20, type=int, help='max distance between samples to identify as clustered')
 parser.add_argument('-nl', '--nolonely', action='store_true', help='if true, do not make a "cluster" of unclustered samples')
 
 args = parser.parse_args()
-logging.basicConfig(level=logging.DEBUG if args.verbose else logging.INFO)
+if args.veryverbose:
+    logging.basicConfig(level=logging.DEBUG)
+elif args.verbose:
+    logging.basicConfig(level=logging.INFO)
+else:
+    logging.basicConfig(level=logging.WARNING)
 tree = args.tree
 t = ete3.Tree(tree, format=1)
-if args.samples:
-    samps = args.samples.split(',')
-else:
-    samps = sorted([leaf.name for leaf in t])
-if args.out:
-    prefix = args.out
-else:
-    prefix = os.path.basename(tree).replace('.nwk', '').replace('_nwk', '')
+samps = args.samples.split(',') if args.samples else sorted([leaf.name for leaf in t])
+prefix = args.out if args.out else os.path.basename(tree).replace('.nwk', '').replace('_nwk', '')
 
-def path_to_root(ete_tree, node):
+def path_to_root(ete_tree, node_name):
     # Browse the tree from a specific leaf to the root
-    node = ete_tree.search_nodes(name=node)[0]
+    logging.debug(f"Getting path for {node_name} in {type(ete_tree)}")
+    node = ete_tree.search_nodes(name=node_name)[0]
+    logging.debug(f"Node as found in ete tree: {node}")
     path = [node]
     while node:
         node = node.up
         path.append(node)
-    #logging.debug(f"path for {node}: {path}")
+    logging.debug(f"path for {node_name}: {path}")
     return path
 
 
@@ -91,14 +93,14 @@ def dist_matrix(tree_to_matrix, samples):
                 matrix[i][j] = total_distance
                 matrix[j][i] = total_distance
                 if not args.nocluster and total_distance <= args.distance:
-                    logging.debug(f"  {this_samp} and {that_samp} might be in a cluster ({total_distance})")
+                    logging.debug(f"  {this_samp} and {that_samp} seem to be in a cluster ({total_distance})")
                     neighbors.append(tuple((this_samp, that_samp)))
                     definitely_in_a_cluster = True
         
         # after iterating through all of j, if this sample is not in a cluster, make note of that
         if not args.nocluster and not definitely_in_a_cluster:
             logging.debug(f"  {this_samp} is either not in a cluster or clustered early")
-            logging.debug(matrix[i])
+            #logging.debug(matrix[i])
             second_smallest_distance = np.partition(matrix[i], 1)[1] # second smallest, because smallest is self-self at 0
             if second_smallest_distance <= args.distance:
                 logging.debug(f"  Oops, {this_samp} was already clustered! (closest sample is {second_smallest_distance}) SNPs away")
@@ -127,19 +129,18 @@ def dist_matrix(tree_to_matrix, samples):
             first_iter = False
     if args.nocluster:
         true_clusters = None
-    logging.debug(matrix)
+    logging.debug("Returning:\n\tsamples:\n%s\n\tmatrix:\n%s\n\ttrue_clusters:\n%s\n\tunclustered:\n%s" % (samples, matrix, true_clusters, unclustered))
     return samples, matrix, true_clusters, unclustered
 
 samps, mat, clusters, lonely = dist_matrix(t, samps)
-
-logging.info(f"Processed {len(samps)} samples, specifically: {samps}") # check if alphabetized
+total_samples_processed = len(samps)
+logging.info(f"Processed {total_samples_processed} samples")
+logging.debug(f"Samples processed: {samps}") # check if alphabetized
 
 #for i in range(len(mat)):
 #    for j in range(len(mat[i])):
 #        if mat[i][j] != mat[j][i]:
 #            print(i,j)
-
-total_samples_processed = len(samps)
 
 # this could probably be made more efficient
 if not args.nocluster:
@@ -182,8 +183,8 @@ if not args.nocluster:
         cluster_samples.append(f"{cluster_name}\t{samples_in_cluster_str}\n")
 
         # recurse to matrix each cluster
-        logging.debug(f"Recursing to get matrix for {cluster_name}...")
-        os.system(f"python3 /scripts/distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_{cluster_name} '{tree}'")
+        logging.debug(f"-->python3 {script_path} -s{samples_in_cluster_str} -vv -nc -o {prefix}_{cluster_name} '{tree}'")
+        os.system(f"python3 {script_path} -s{samples_in_cluster_str} -vv -nc -o {prefix}_{cluster_name} '{tree}'")
         
         # build sample_cluster lines for this cluster - this will be used for auspice annotation
         for s in samples_in_cluster:
@@ -198,7 +199,8 @@ if not args.nocluster:
         unclustered_as_str = ','.join(lonely)
         cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
         cluster_samples.append("\n") # to avoid skipping last line when read
-        os.system(f"python3 /scripts/distancematrix_nwk.py -s{unclustered_as_str} -nc -o {prefix}_lonely '{tree}'")
+        logging.debug(f"-->python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
+        os.system(f"python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
 
     # auspice-style TSV for annotation of clusters
     with open(f"{prefix}_cluster_annotation.tsv", "a") as samples_for_annotation:
@@ -221,7 +223,7 @@ if not args.nocluster:
 with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
     outfile.write('sample\t'+'\t'.join(samps))
     outfile.write("\n")
-    for ii in enumerate(samps):
+    for i in range(len(samps)): # don't change to enumerate without changing i; with enumerate it's a tuple
         #strng = np.array2string(mat[i], separator='\t')[1:-1]
-        line = [ str(int(count)) for count in mat[ii]]
-        outfile.write(f'{samps[ii]}\t' + '\t'.join(line) + '\n')
+        line = [ str(int(count)) for count in mat[i]]
+        outfile.write(f'{samps[i]}\t' + '\t'.join(line) + '\n')
