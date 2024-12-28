@@ -1,8 +1,9 @@
-print("VERSION 1.4.4")
+print("VERSION 1.4.5")
 
 import os
 import argparse
 import logging
+from datetime import date
 import numpy as np
 import ete3
 import tqdm as progressbar
@@ -66,25 +67,20 @@ def dist_matrix(tree, samples):
             if os == s:
                 # self-to-self
                 matrix[i][j] = '0'
-                
-            if os != s:
+            else:
                 if matrix[i][j] == -1: # ie, we haven't calculated this one yet
                     #find lca, add up branch lengths
-                    s_path = 0 
-                    os_path = 0 
-                    
+                    s_path = 0
+                    os_path = 0
                     for a in samp_ancs[s]:
-                        
                         s_path += a.dist
                         if a in samp_ancs[os]:
-                        
                             lca = a
                             s_path -= a.dist
                             #logging.debug(f"  found a in samp_ancs[os], setting s_path")
                             break
                     
                     for a in samp_ancs[os]:
-                        
                         os_path += a.dist
                         if a == lca:
                             #logging.debug(f'  a == lca, setting os_path')
@@ -154,6 +150,7 @@ if not args.nocluster:
     # sample13    cluster1
     # sample14    cluster1
     sample_cluster = ['Sample\tCluster\n']
+    sample_clusterUUID = ['Sample\tClusterUUID\n']
 
     # cluster_samples is for matutils extract to generate Nextstrain subtrees, eg:
     # cluster1    sample12,sample13,sample14
@@ -170,12 +167,14 @@ if not args.nocluster:
         n_samples_in_clusters += len(samples_in_cluster) # samples in ANY cluster, not just this one
         samples_in_cluster_str = ",".join(samples_in_cluster)
         is_cdph = any(samp_name[:2].isdigit() for samp_name in samples_in_cluster)
-        UUID = str(args.distance).zfill(3) + str(i).zfill(5)
+        UUID = str(args.distance).zfill(3) + "-" + str(i).zfill(5) + "-" + str(date.today())
         if is_cdph:
-            cluster_name = f"California-YYYY-{UUID}"
+            # TODO: once we have metadata, switch to "California-YYYY"
+            cluster_name = f"California-{UUID}"
             logging.info(f"{cluster_name}: CDPH, {len(samples_in_cluster)} members")
         else:
-            cluster_name = f"ISO-YYYY-{UUID}"
+            # TODO: once we have metadata, switch to "ISO-YYYY"
+            cluster_name = f"Open-{UUID}"
             logging.info(f"{cluster_name}: open, {len(samples_in_cluster)} members")
 
         # build cluster_samples line for this cluster
@@ -183,27 +182,32 @@ if not args.nocluster:
 
         # recurse to matrix each cluster
         logging.debug(f"Recursing to get matrix for {cluster_name}...")
-        os.system(f"python3 distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_{cluster_name} '{tree}'")
+        os.system(f"python3 /scripts/distancematrix_nwk.py -s{samples_in_cluster_str} -nc -o {prefix}_{cluster_name} '{tree}'")
         
         # build sample_cluster lines for this cluster - this will be used for auspice annotation
         for sample in samples_in_cluster:
             sample_cluster.append(f"{sample}\t{cluster_name}\n")
+            sample_clusterUUID.append(f"{sample}\t{UUID}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
-    if not args.nl:
+    if not args.nolonely:
         lonely = sorted(list(lonely))
         for sample in lonely:
-            sample_cluster.append(f"{sample}\tlonely\n")
+            sample_cluster.append(f"{sample}\tlonely\n") # do NOT add to sample_clusterUUID lest persistent cluster IDs script break
         unclustered_as_str = ','.join(lonely)
         cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
         cluster_samples.append("\n") # to avoid skipping last line when read
-        os.system(f"python3 distancematrix_nwk.py -s{unclustered_as_str} -nc -o {prefix}_lonely '{tree}'")
+        os.system(f"python3 /scripts/distancematrix_nwk.py -s{unclustered_as_str} -nc -o {prefix}_lonely '{tree}'")
 
-    # generate an auspice-style TSV for annotation of clusters
+    # auspice-style TSV for annotation of clusters
     with open(f"{prefix}_cluster_annotation.tsv", "a") as samples_for_annotation:
         samples_for_annotation.writelines(sample_cluster)
+
+    # auspice-style TSV with cluster UUIDs instead of full names; used for persistent cluster IDs
+    with open(f"{prefix}_cluster_UUIDs.tsv", "a") as samples_by_cluster_UUID:
+        samples_by_cluster_UUID.writelines(sample_clusterUUID)
     
-    # generate another TSV for subtree annotation
+    # usher-style TSV for subtree extraction
     with open(f"{prefix}_cluster_extraction.tsv", "a") as clusters_for_subtrees:
         clusters_for_subtrees.writelines(cluster_samples)
     
