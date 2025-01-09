@@ -1,4 +1,4 @@
-print("VERSION 1.4.7")
+print("VERSION 1.4.8")
 script_path = '/scripts/distancematrix_nwk.py'
 
 import os
@@ -17,7 +17,6 @@ parser.add_argument('-vv', '--veryverbose', action='store_true', help='enable de
 parser.add_argument('-nc', '--nocluster', action='store_true', help='do not search for clusters')
 parser.add_argument('-o', '--out', required=False, type=str, help='what to append to output file name')
 parser.add_argument('-d', '--distance', default=20, type=int, help='max distance between samples to identify as clustered')
-parser.add_argument('-nl', '--nolonely', action='store_true', help='if true, do not make a "cluster" of unclustered samples')
 
 args = parser.parse_args()
 if args.veryverbose:
@@ -168,14 +167,18 @@ if not args.nocluster:
         assert len(samples_in_cluster) == len(set(samples_in_cluster))
         n_samples_in_clusters += len(samples_in_cluster) # samples in ANY cluster, not just this one
         samples_in_cluster_str = ",".join(samples_in_cluster)
-        is_cdph = any(samp_name[:2].isdigit() for samp_name in samples_in_cluster)
-        UUID = str(args.distance).zfill(3) + "-" + str(n).zfill(5) + "-" + str(date.today())
+        is_cdph = is_cdph = any(
+            samp_name[:2].isdigit() or 
+            (samp_name.startswith("[BM]") and samp_name[4:6].isdigit())
+            for samp_name in samples_in_cluster
+        )
+        UUID = str(args.distance).zfill(2) + "-" + str(n).zfill(4) + "-" + str(date.today().isoformat())
         if is_cdph:
-            # TODO: once we have metadata, switch to "California-YYYY"
-            cluster_name = f"California-{UUID}"
+            # TODO: once we have metadata, switch to "CA-YYYY"
+            cluster_name = f"CA-{UUID}"
             logging.info(f"{cluster_name}: CDPH, {len(samples_in_cluster)} members")
         else:
-            # TODO: once we have metadata, switch to "ISO-YYYY"
+            # TODO: once we have metadata, consider switching to "ISO-YYYY"
             cluster_name = f"Open-{UUID}"
             logging.info(f"{cluster_name}: open, {len(samples_in_cluster)} members")
 
@@ -192,32 +195,36 @@ if not args.nocluster:
             sample_clusterUUID.append(f"{s}\t{UUID}\n")
     
     # add in the unclustered samples (outside for loop to avoid writing multiple times)
-    if not args.nolonely:
-        lonely = sorted(list(lonely))
-        for george in lonely: # W0621, https://en.wikipedia.org/wiki/Lonesome_George
-            sample_cluster.append(f"{george}\tlonely\n") # do NOT add to sample_clusterUUID lest persistent cluster IDs script break
-        unclustered_as_str = ','.join(lonely)
-        cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
-        cluster_samples.append("\n") # to avoid skipping last line when read
-        logging.debug(f"-->python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
-        os.system(f"python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
-
+    # however, don't add to the UUID list, or else persistent cluster IDs will break
+    lonely = sorted(list(lonely))
+    for george in lonely: # W0621, https://en.wikipedia.org/wiki/Lonesome_George
+        sample_cluster.append(f"{george}\tlonely\n")
+    unclustered_as_str = ','.join(lonely)
+    cluster_samples.append(f"lonely\t{unclustered_as_str}\n")
+    logging.debug(f"-->python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
+    os.system(f"python3 {script_path} -s{unclustered_as_str} -vv -nc -o {prefix}_lonely '{tree}'")
+    with open(f"{prefix}_lonely.txt", "a") as unclustered_samples_list:
+        unclustered_samples_list.writelines(lonely)
+    
     # auspice-style TSV for annotation of clusters
     with open(f"{prefix}_cluster_annotation.tsv", "a") as samples_for_annotation:
         samples_for_annotation.writelines(sample_cluster)
 
     # auspice-style TSV with cluster UUIDs instead of full names; used for persistent cluster IDs
+    # this one should never include unclustered samples
     with open(f"{prefix}_cluster_UUIDs.tsv", "a") as samples_by_cluster_UUID:
         samples_by_cluster_UUID.writelines(sample_clusterUUID)
     
     # usher-style TSV for subtree extraction
     with open(f"{prefix}_cluster_extraction.tsv", "a") as clusters_for_subtrees:
+        cluster_samples.append("\n") # to avoid skipping last line when read
         clusters_for_subtrees.writelines(cluster_samples)
     
     # generate little summary files for WDL to parse directly
     with open("n_clusters", "w") as n_cluster: n_cluster.write(str(n_clusters))
     with open("n_samples_in_clusters", "w") as n_cluded: n_cluded.write(str(n_samples_in_clusters))
     with open("total_samples_processed", "w") as n_processed: n_processed.write(str(total_samples_processed))
+    with open("n_unclustered", "w") as n_lonely: n_lonely.write(str(len(lonely)))
     logging.info("Writing final matrix...") # keep this in the "if not args.nc" block; we don't want recursions to print it
 
 with open(f"{prefix}_dmtrx.tsv", "a") as outfile:
