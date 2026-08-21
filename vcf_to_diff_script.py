@@ -1,3 +1,6 @@
+# This script was written by Lily Karim (lilymaryam on GitHub)
+# Some later edits by Ash O'Farrell (aofarrel on GitHub)
+
 import os
 import argparse
 import gzip
@@ -94,9 +97,10 @@ def process_others(line):
     end = len(ref)
     if ref < alt:
         l = ['-', line[1], str(end)]
-    if ref > alt:
+    elif ref > alt:
         l = ['-', line[1], str(end)]
-
+    else:
+        raise ValueError("process_others() was called improperly")
     return l
 
 def mask_TB(tbmf):
@@ -133,10 +137,10 @@ def mask_low_depth(bed, min_coverage):
             #might need to delete or change this
             #for currect bed coverage file 
             if line.startswith('NC_000962.3'):
-                line = line.strip().split()
+                line = line.strip().split()   # ex: ['NC_000962.3', '93037', '93038', '1']
                 #re-index to match VCF
-                line[1] = str(int(line[1])+1)
-                line[2] = str(int(line[2])+1)
+                line[1] = str(int(line[1])+1) # ex: ['NC_000962.3', '93038', '93038', '1']
+                line[2] = str(int(line[2])+1) # ex: ['NC_000962.3', '93038', '93039', '1']
                 #if the coverage is below min_coverage
                 if int(line[3]) < min_coverage:
                     if prev == None:
@@ -156,7 +160,7 @@ def mask_low_depth(bed, min_coverage):
                             prev = [int(line[1]), int(line[2])]
     #this conditional might need to be fixed if there are no low-coverage areas
     if low_depth_sites == {}:
-        raise Exception('coverage file has incorrect reference')
+        raise Exception('coverage file either has incorrect reference (expected NC_000962.3) or no low-coverage areas')
 
     return low_depth_sites
                     
@@ -299,18 +303,18 @@ def vcf_to_diff(vcf_file):
                             
                             #generated sorted list of both alleles genotyped 
                             vars = sorted([alleles[int(genos[0])], alleles[int(genos[1])]])
-                            logging.debug('vars', vars)
+                            logging.debug(f'vars {vars}')
                             #if the heterozygous position is a SNP, replace with an IUPAC symbol
                             if len(vars[0])==len(vars[1])==1:
                                 logging.debug('SNP')
                                 for key in IUPAC:
                                     if IUPAC[key] == vars:
-                                        logging.debug('IUPAC key', key)
+                                        logging.debug(f'IUPAC key {key}')
                                         #alts = line[4].split(',')
                                         #alt = alts[int(var)-1]
                                         line[4] = key
                                         line[-1] = '1'
-                                        logging.debug('line after ', line)
+                                        logging.debug(f'line after {line}')
                                         break
 
                             ##if one of the vars is an indel, mask the position       
@@ -319,7 +323,7 @@ def vcf_to_diff(vcf_file):
                                 logging.debug(line)
                                 line[4] = '-'
                                 line [-1] = '1'
-                                logging.debug('after', line)
+                                logging.debug(f'after {line}')
 
                         #if reference is an indel and/or genotype is homozygous
                         else: 
@@ -617,7 +621,7 @@ def check_prev_line(prev, line):
         else:
             # previously there were arthimatic errors, but this should be fine now
             prev[2] = str(line_e-prev_s)
-            logging.debug('prev after ', prev)
+            logging.debug(f'prev after {prev}')
             change = prev
     #elif line_s <= prev_s and line_e >= prev_s:
     if newline != None:
@@ -812,15 +816,15 @@ def mask_and_write_diff(low_depth_sites, tb_masks, lines, samps):
             line_start = line[1]
 
             if prev != None:
-                    #change here
-                    overlap,change,newline = check_prev_line(prev, line)
-                    if overlap == True and change != None:
-                        #do i need to change this?
-                        logging.debug('change!!!!! {change}')
-                        #all_lines[change[0]] = change[1]
-                    if newline != None:
-                        all_lines.append(newline)
-                        logging.debug('append!!!! {newline}')
+                #change here
+                overlap,change,newline = check_prev_line(prev, line)
+                if overlap == True and change != None:
+                    #do i need to change this?
+                    logging.debug('change!!!!! {change}')
+                    #all_lines[change[0]] = change[1]
+                if newline != None:
+                    all_lines.append(newline)
+                    logging.debug('append!!!! {newline}')
             if prev == None or overlap == False:
                 logging.debug(f'add as is!!!!!! line {line} prev {prev}')
                 all_lines.append(line)
