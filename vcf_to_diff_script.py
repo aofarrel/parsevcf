@@ -1,3 +1,6 @@
+# This script was written by Lily Karim (lilymaryam on GitHub)
+# Some later edits by Ash O'Farrell (aofarrel on GitHub)
+
 import os
 import argparse
 import gzip
