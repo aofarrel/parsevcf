@@ -133,10 +133,10 @@ def mask_low_depth(bed, min_coverage):
             #might need to delete or change this
             #for currect bed coverage file 
             if line.startswith('NC_000962.3'):
-                line = line.strip().split()
+                line = line.strip().split()   # ex: ['NC_000962.3', '93037', '93038', '1']
                 #re-index to match VCF
-                line[1] = str(int(line[1])+1)
-                line[2] = str(int(line[2])+1)
+                line[1] = str(int(line[1])+1) # ex: ['NC_000962.3', '93038', '93038', '1']
+                line[2] = str(int(line[2])+1) # ex: ['NC_000962.3', '93038', '93039', '1']
                 #if the coverage is below min_coverage
                 if int(line[3]) < min_coverage:
                     if prev == None:
@@ -156,7 +156,7 @@ def mask_low_depth(bed, min_coverage):
                             prev = [int(line[1]), int(line[2])]
     #this conditional might need to be fixed if there are no low-coverage areas
     if low_depth_sites == {}:
-        raise Exception('coverage file has incorrect reference')
+        raise Exception('coverage file either has incorrect reference (expected NC_000962.3) or no low-coverage areas')
 
     return low_depth_sites
                     
