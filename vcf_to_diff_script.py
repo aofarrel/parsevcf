@@ -97,9 +97,10 @@ def process_others(line):
     end = len(ref)
     if ref < alt:
         l = ['-', line[1], str(end)]
-    if ref > alt:
+    elif ref > alt:
         l = ['-', line[1], str(end)]
-
+    else:
+        raise ValueError("process_others() was called improperly")
     return l
 
 def mask_TB(tbmf):
